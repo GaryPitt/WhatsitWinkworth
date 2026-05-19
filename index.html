@@ -290,24 +290,43 @@ let props=[],idx=0,streak=0,phase='intro',regName='',regEmail='',regPhone='';
 
 function shuffleArr(a){const b=[...a];for(let i=b.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));[b[i],b[j]]=[b[j],b[i]]}return b}
 
-// Build a deck where every consecutive pair is at least £100k apart in price
+// Build a deck that starts easier (big gaps) and gets progressively trickier
+// Splits into low / mid / high thirds, sequences low→high→mid for best variety
+// Minimum £200k gap between every consecutive pair
 function buildDeck(){
-  const MIN=100000;
-  for(let attempt=0;attempt<150;attempt++){
-    const arr=shuffleArr([...ALL]);
-    let ok=true;
-    for(let i=0;i<arr.length-1;i++){
-      if(Math.abs(arr[i].price-arr[i+1].price)<MIN){ok=false;break;}
-    }
-    if(ok)return arr;
-  }
-  // Fallback: interleave low and high price halves — guarantees £125k+ gap
+  const MIN=200000;
   const sorted=[...ALL].sort((a,b)=>a.price-b.price);
-  const lo=shuffleArr(sorted.slice(0,Math.ceil(sorted.length/2)));
-  const hi=shuffleArr(sorted.slice(Math.ceil(sorted.length/2)));
+  const third=Math.floor(sorted.length/3);
+  const lo=shuffleArr(sorted.slice(0,third));               // cheapest third
+  const hi=shuffleArr(sorted.slice(sorted.length-third));   // most expensive third
+  const mid=shuffleArr(sorted.slice(third,sorted.length-third)); // middle third
+
+  // Sequence: lo then hi then mid — big swings early, tighter comparisons later
+  const seeded=[...lo,...hi,...mid];
+
+  // Validate — if any pair too close, try random shuffles instead
+  let ok=true;
+  for(let i=0;i<seeded.length-1;i++){
+    if(Math.abs(seeded[i].price-seeded[i+1].price)<MIN){ok=false;break;}
+  }
+  if(ok)return seeded;
+
+  // Random shuffle fallback with validation
+  for(let attempt=0;attempt<200;attempt++){
+    const arr=shuffleArr([...ALL]);
+    let valid=true;
+    for(let i=0;i<arr.length-1;i++){
+      if(Math.abs(arr[i].price-arr[i+1].price)<MIN){valid=false;break;}
+    }
+    if(valid)return arr;
+  }
+
+  // Last resort: strict interleave of bottom and top halves
+  const bot=shuffleArr(sorted.slice(0,Math.ceil(sorted.length/2)));
+  const top=shuffleArr(sorted.slice(Math.ceil(sorted.length/2)));
   const result=[];
-  const len=Math.max(lo.length,hi.length);
-  for(let i=0;i<len;i++){if(i<lo.length)result.push(lo[i]);if(i<hi.length)result.push(hi[i]);}
+  const len=Math.max(bot.length,top.length);
+  for(let i=0;i<len;i++){if(i<bot.length)result.push(bot[i]);if(i<top.length)result.push(top[i]);}
   return result;
 }
 
