@@ -288,13 +288,49 @@ const ALL = [
 
 let props=[],idx=0,streak=0,phase='intro',regName='',regEmail='',regPhone='';
 
-function shuffle(a){const b=[...a];for(let i=b.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));[b[i],b[j]]=[b[j],b[i]]}return b}
+function shuffleArr(a){const b=[...a];for(let i=b.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));[b[i],b[j]]=[b[j],b[i]]}return b}
+
+// Build a deck where every consecutive pair is at least £100k apart in price
+function buildDeck(){
+  const MIN=100000;
+  for(let attempt=0;attempt<150;attempt++){
+    const arr=shuffleArr([...ALL]);
+    let ok=true;
+    for(let i=0;i<arr.length-1;i++){
+      if(Math.abs(arr[i].price-arr[i+1].price)<MIN){ok=false;break;}
+    }
+    if(ok)return arr;
+  }
+  // Fallback: interleave low and high price halves — guarantees £125k+ gap
+  const sorted=[...ALL].sort((a,b)=>a.price-b.price);
+  const lo=shuffleArr(sorted.slice(0,Math.ceil(sorted.length/2)));
+  const hi=shuffleArr(sorted.slice(Math.ceil(sorted.length/2)));
+  const result=[];
+  const len=Math.max(lo.length,hi.length);
+  for(let i=0;i<len;i++){if(i<lo.length)result.push(lo[i]);if(i<hi.length)result.push(hi[i]);}
+  return result;
+}
+
+// ── ATTEMPT TRACKING (3 per day, resets at midnight) ──
+const ATTEMPTS_KEY='winkworth_latchelsea_2026';
+const MAX_DAILY=3;
+function todayStr(){return new Date().toISOString().split('T')[0];}
+function getAttemptData(){
+  try{const s=localStorage.getItem(ATTEMPTS_KEY);if(!s)return{count:0,date:todayStr(),won:false};
+  const d=JSON.parse(s);if(d.date!==todayStr())return{count:0,date:todayStr(),won:false};return d;}
+  catch(e){return{count:0,date:todayStr(),won:false};}
+}
+function saveAttemptData(d){try{localStorage.setItem(ATTEMPTS_KEY,JSON.stringify(d));}catch(e){}}
+function recordFailedAttempt(){const d=getAttemptData();d.count=(d.count||0)+1;saveAttemptData(d);return d.count;}
+function recordWin(){const d=getAttemptData();d.won=true;saveAttemptData(d);}
+function isLockedOut(){const d=getAttemptData();return d.won||d.count>=MAX_DAILY;}
+function attemptsLeft(){return Math.max(0,MAX_DAILY-getAttemptData().count);}
 function fmt(p){return'£'+p.toLocaleString('en-GB')}
 
 function startGame(){
   document.getElementById('intro').style.display='none';
   document.getElementById('game').style.display='flex';
-  props=shuffle(ALL);
+  props=buildDeck();
   idx=0;streak=0;phase='playing';
   regName='';regEmail='';regPhone='';
   renderGame();
@@ -388,20 +424,37 @@ function logoImg(cls){
 }
 
 function showGameOver(){
+  const failCount=recordFailedAttempt();
+  const locked=failCount>=MAX_DAILY;
   removeModal();
   const m=document.createElement('div');
   m.id='modal';m.className='modal modal-white';
-  m.innerHTML=`<div class="modal-inner" style="text-align:center">
-    <img src="${LOGO}" style="height:24px;margin-bottom:20px" onerror="this.style.display='none'">
-    <div style="font-size:58px;margin-bottom:12px">🏠</div>
-    <div style="font-family:'Cormorant Garamond',serif;font-size:32px;font-weight:700;color:#1A1A1A;margin-bottom:6px">Game Over</div>
-    <div style="color:#AAA;font-size:13px;margin-bottom:6px">You reached a streak of</div>
-    <div style="font-family:'Cormorant Garamond',serif;font-size:70px;font-weight:700;color:${NAVY};line-height:1;margin-bottom:4px">${streak}</div>
-    <div style="color:#AAA;font-size:12px;margin-bottom:28px">${streak>=(STREAK_TO_WIN-1)?'So close! You need '+STREAK_TO_WIN+' in a row to win.':'Get '+STREAK_TO_WIN+' correct in a row to claim your prize from the Winkworth stand.'}</div>
-    <button class="modal-btn btn-navy-full" onclick="restart()" style="margin-bottom:10px">Try Again</button>
-    <button class="modal-btn" onclick="goIntro()" style="background:#F0EBE3;color:${NAVY};margin-top:8px">How to play</button>
-    <div style="color:#CCC;font-size:11px;margin-top:16px">winkworth.co.uk</div>
-  </div>`;
+  if(locked){
+    m.innerHTML=`<div class="modal-inner" style="text-align:center">
+      <img src="${LOGO}" style="height:24px;margin-bottom:20px" onerror="this.style.display='none'">
+      <div style="font-size:52px;margin-bottom:14px">🔒</div>
+      <div style="font-family:'Cormorant Garamond',serif;font-size:28px;font-weight:700;color:#1A1A1A;margin-bottom:10px">No more attempts today</div>
+      <div style="color:#888;font-size:13px;line-height:1.65;margin-bottom:10px">You've used all 3 of today's prize attempts.</div>
+      <div style="background:#F0EBE3;border-radius:8px;padding:12px 16px;margin-bottom:24px;font-size:12px;color:#666;line-height:1.6">
+        Come and find us at the <strong style="color:${NAVY}">Winkworth stand on The Terrace</strong> — we'd love to chat about your next move in the London property market.
+      </div>
+      <div style="color:#CCC;font-size:11px">winkworth.co.uk</div>
+    </div>`;
+  } else {
+    const left=MAX_DAILY-failCount;
+    m.innerHTML=`<div class="modal-inner" style="text-align:center">
+      <img src="${LOGO}" style="height:24px;margin-bottom:20px" onerror="this.style.display='none'">
+      <div style="font-size:58px;margin-bottom:12px">🏠</div>
+      <div style="font-family:'Cormorant Garamond',serif;font-size:32px;font-weight:700;color:#1A1A1A;margin-bottom:6px">Game Over</div>
+      <div style="color:#AAA;font-size:13px;margin-bottom:6px">You reached a streak of</div>
+      <div style="font-family:'Cormorant Garamond',serif;font-size:70px;font-weight:700;color:${NAVY};line-height:1;margin-bottom:4px">${streak}</div>
+      <div style="color:#AAA;font-size:12px;margin-bottom:6px">${streak>=(STREAK_TO_WIN-1)?'So close! You need '+STREAK_TO_WIN+' in a row to win.':'Get '+STREAK_TO_WIN+' correct in a row to claim your prize from the Winkworth stand.'}</div>
+      <div style="background:#E8F0EB;border-radius:6px;padding:8px 12px;margin-bottom:22px;font-size:12px;color:${NAVY};font-weight:500">${left} prize attempt${left===1?'':'s'} remaining today</div>
+      <button class="modal-btn btn-navy-full" onclick="restart()" style="margin-bottom:10px">Try Again</button>
+      <button class="modal-btn" onclick="goIntro()" style="background:#F0EBE3;color:${NAVY};margin-top:8px">How to play</button>
+      <div style="color:#CCC;font-size:11px;margin-top:16px">winkworth.co.uk</div>
+    </div>`;
+  }
   document.getElementById('app').appendChild(m);
 }
 
@@ -451,6 +504,7 @@ function checkReg(){
 
 function submitReg(){
   if(!regName.trim()||!regEmail.includes('@'))return;
+  recordWin();
   removeModal();
   const m=document.createElement('div');
   m.id='modal';m.className='modal modal-navy';
@@ -473,7 +527,7 @@ function submitReg(){
 
 function restart(){
   removeModal();
-  props=shuffle(ALL);
+  props=buildDeck();
   idx=0;streak=0;phase='playing';
   regName='';regEmail='';regPhone='';
   renderGame();
