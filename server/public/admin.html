@@ -1,0 +1,107 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Winkworth · Admin</title>
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:'DM Sans',sans-serif;background:#F5F3EF;color:#1A1A1A;min-height:100vh}
+.header{background:#0D1B4D;padding:18px 24px;display:flex;align-items:center;justify-content:space-between}
+.header h1{color:#fff;font-family:'Cormorant Garamond',serif;font-size:22px;font-weight:700}
+.header h1 span{color:#C9A84C}
+.header-actions{display:flex;gap:10px;align-items:center}
+.btn{padding:8px 16px;border-radius:8px;border:none;font-family:'DM Sans',sans-serif;font-size:13px;font-weight:600;cursor:pointer;text-decoration:none;display:inline-flex;align-items:center;gap:6px;transition:transform .1s}
+.btn:active{transform:scale(.97)}
+.btn-gold{background:#C9A84C;color:#0D1B4D}
+.btn-outline{background:transparent;color:rgba(255,255,255,.7);border:1px solid rgba(255,255,255,.2)}
+.btn-outline:hover{border-color:rgba(255,255,255,.5);color:#fff}
+.container{max-width:960px;margin:24px auto;padding:0 20px}
+.stats{display:flex;gap:12px;margin-bottom:24px;flex-wrap:wrap}
+.stat{background:#fff;border-radius:10px;padding:16px 20px;flex:1;min-width:140px;border:1px solid #E8E2D9}
+.stat-label{font-size:11px;color:#888;text-transform:uppercase;letter-spacing:1px;margin-bottom:4px}
+.stat-value{font-family:'Cormorant Garamond',serif;font-size:28px;font-weight:700;color:#0D1B4D}
+.table-wrap{background:#fff;border-radius:12px;border:1px solid #E8E2D9;overflow:hidden}
+.table-header{padding:16px 20px;border-bottom:1px solid #E8E2D9;display:flex;align-items:center;justify-content:space-between}
+.table-header h2{font-family:'Cormorant Garamond',serif;font-size:18px;font-weight:700}
+table{width:100%;border-collapse:collapse}
+thead{background:#F0EBE3}
+th{font-size:11px;text-transform:uppercase;letter-spacing:.5px;color:#6B5B45;padding:10px 16px;text-align:left;font-weight:600}
+td{padding:12px 16px;border-bottom:1px solid #F0EBE3;font-size:13px}
+tr:last-child td{border-bottom:none}
+tr:hover td{background:#FAFAF8}
+.email-cell{color:#0D1B4D;font-weight:500}
+.phone-cell{color:#888}
+.time-cell{font-size:12px;color:#888;white-space:nowrap}
+.empty{padding:40px;text-align:center;color:#888;font-size:14px}
+.loading{padding:40px;text-align:center;color:#888;font-size:14px}
+.badge{display:inline-block;padding:2px 8px;border-radius:10px;font-size:11px;font-weight:600}
+.badge-streak{background:#E8F0EB;color:#2D6A4F}
+</style>
+</head>
+<body>
+<div class="header">
+  <h1><span>Winkworth</span> · Admin</h1>
+  <div class="header-actions">
+    <a class="btn btn-outline" href="/api/submissions/csv">⬇ CSV</a>
+    <a class="btn btn-outline" href="/">← Back to Game</a>
+  </div>
+</div>
+<div class="container">
+  <div class="stats" id="stats"></div>
+  <div class="table-wrap">
+    <div class="table-header">
+      <h2>Submissions</h2>
+      <button class="btn btn-gold" onclick="loadData()">↻ Refresh</button>
+    </div>
+    <div id="table-body">
+      <div class="loading">Loading…</div>
+    </div>
+  </div>
+</div>
+<script>
+async function loadData(){
+  try{
+    const res=await fetch('/api/submissions');
+    if(res.status===401){document.getElementById('table-body').innerHTML='<div class="empty">Authentication required — your browser should prompt for credentials.</div>';return;}
+    const rows=await res.json();
+    renderStats(rows);
+    renderTable(rows);
+  }catch(e){
+    document.getElementById('table-body').innerHTML='<div class="empty">Error loading data: '+e.message+'</div>';
+  }
+}
+function renderStats(rows){
+  const total=rows.length;
+  const unique=new Set(rows.map(r=>r.email)).size;
+  const withPhone=rows.filter(r=>r.phone).length;
+  const today=rows.filter(r=>new Date(r.created_at).toDateString()===new Date().toDateString()).length;
+  document.getElementById('stats').innerHTML=`
+    <div class="stat"><div class="stat-label">Total Entries</div><div class="stat-value">${total}</div></div>
+    <div class="stat"><div class="stat-label">Unique Emails</div><div class="stat-value">${unique}</div></div>
+    <div class="stat"><div class="stat-label">With Phone</div><div class="stat-value">${withPhone}</div></div>
+    <div class="stat"><div class="stat-label">Today</div><div class="stat-value">${today}</div></div>`;
+}
+function renderTable(rows){
+  if(!rows.length){document.getElementById('table-body').innerHTML='<div class="empty">No submissions yet</div>';return;}
+  const fmt=d=>{const dt=new Date(d);return dt.toLocaleDateString('en-GB',{day:'numeric',month:'short'})+' '+dt.toLocaleTimeString('en-GB',{hour:'2-digit',minute:'2-digit'});};
+  let html='<table><thead><tr><th>#</th><th>Name</th><th>Email</th><th>Phone</th><th>Streak</th><th>Time</th></tr></thead><tbody>';
+  rows.forEach(r=>{
+    html+=`<tr>
+      <td>${r.id}</td>
+      <td>${esc(r.name)}</td>
+      <td class="email-cell">${esc(r.email)}</td>
+      <td class="phone-cell">${r.phone?esc(r.phone):'—'}</td>
+      <td><span class="badge badge-streak">${r.streak}✓</span></td>
+      <td class="time-cell">${fmt(r.created_at)}</td>
+    </tr>`;
+  });
+  html+='</tbody></table>';
+  document.getElementById('table-body').innerHTML=html;
+}
+function esc(s){const d=document.createElement('div');d.textContent=s;return d.innerHTML;}
+loadData();
+</script>
+</body>
+</html>
