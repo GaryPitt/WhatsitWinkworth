@@ -16,7 +16,8 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - uses: superfly/flyctl-actions/setup-flyctl@master
-      - run: flyctl deploy --remote-only
-        working-directory: server
+      # Build context is the repo root so the root index.html can be baked
+      # into the image as the homepage; app config lives in server/fly.toml.
+      - run: flyctl deploy --remote-only --config server/fly.toml --dockerfile server/Dockerfile
         env:
           FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
