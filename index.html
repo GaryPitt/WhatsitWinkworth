@@ -482,6 +482,12 @@ function submitReg(){
   if(!regName.trim()||!regEmail.includes('@'))return;
   const code=genCode();
   saveWin(regName.trim(),code);
+  // Save submission to the database via the API (fire-and-forget)
+  fetch('/api/submissions',{
+    method:'POST',
+    headers:{'Content-Type':'application/json'},
+    body:JSON.stringify({name:regName.trim(),email:regEmail.trim(),phone:regPhone.trim()||null,streak:streak})
+  }).catch(()=>{});
   removeModal();
   const m=document.createElement('div');
   m.id='modal';m.className='modal';m.style.background='rgba(0,0,0,0.55)';
